@@ -10,7 +10,7 @@ object HighLevelParser {
         val parameters = node.map("parameter", node => parseParameter(node))
         val returnType = node("type")
             .map(HighLevelTypeParser.parseType)
-            .getOrElse(HighLevelType.UNIT)
+            .getOrElse(HighLevelType.UNIT(node.region))
         HighLevelFunction(node.region, name, parameters, returnType)
     }
 
@@ -25,16 +25,14 @@ object HighLevelParser {
 object HighLevelTypeParser {
     def parseType(node: Node): HighLevelType = {
         node.assertType("type")
+        val region = node.region
         node.id() match {
-            case "int"  => HighLevelType.INT
-            case "bool" => HighLevelType.BOOL
-            case "unit" => HighLevelType.UNIT
-            case rest   => HighLevelType.Class(rest)
+            case "int"  => HighLevelType.INT(region)
+            case "bool" => HighLevelType.BOOL(region)
+            case "unit" => HighLevelType.UNIT(region)
+            case rest   => HighLevelType.Class(region, rest)
         }
     }
 }
 
-
-object HighLevelExpressionParser {
-
-}
+object HighLevelExpressionParser {}

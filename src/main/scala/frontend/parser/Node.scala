@@ -3,8 +3,6 @@ package parser
 
 import frontend.lexer.{Region, TokenRecord}
 
-import scala.annotation.tailrec
-
 case class Node(name: String, region: Region, children: List[Node], tokenRecord: TokenRecord, isLiteral: Boolean) {
 
     def apply(name: String): NodeResult = {
@@ -70,7 +68,7 @@ enum NodeResult {
             case NodeResult.None()     => throw new Exception(msg)
         }
     }
-    
+
     def map[T](f: Node => T): Option[T] = {
         this match {
             case NodeResult.Some(node) => Option.apply(f(node))

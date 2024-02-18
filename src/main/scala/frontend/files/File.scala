@@ -8,7 +8,7 @@ import scala.jdk.CollectionConverters.*
 sealed trait File {
     def content: String
 
-    def lines(): Iterator[String] = {
+    final def lines(): Iterator[String] = {
         content.lines().iterator().asScala.to(Iterator)
     }
 
