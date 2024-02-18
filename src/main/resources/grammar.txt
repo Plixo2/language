@@ -1,2 +1,15 @@
 
-entry ::= (expression! | statement)* ("id")? Expression*
+entry ::= function*
+function ::= "fn" id! "("! (parameter ("," parameter!)* )? ")"! ("->" type!)? expression!
+parameter ::= id ":" type!
+
+type ::= id
+
+
+expression ::= block | define | id | number
+define ::= "let" id! "="! expression!
+block ::= "{" expression* "}"!
+
+
+id ::= "word"
+number ::= "number"
