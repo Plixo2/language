@@ -1,6 +1,7 @@
 package frontend
 package parser
 
+import frontend.exceptions.LanguageException
 import frontend.files.File
 import frontend.lexer.*
 
@@ -13,9 +14,14 @@ final class Grammar(file: File) {
         var rules = List[Rule]()
         for ((line, index) <- file.lines().zipWithIndex) {
             val tokens = tokenizer.tokenizeLine(file, line, index)
-            val filter = tokens.filter(token => token.token != WhiteSpaceToken && token.token != CommentToken)
+            val filter =
+                tokens.getOrThrow().filter(token => token.token != WhiteSpaceToken && token.token != CommentToken)
             if (filter.nonEmpty) {
-                rules = rules :+ parseRule(ModifiableTokenStream(filter), languageTokens)
+                val rule = parseRule(ModifiableTokenStream(filter), languageTokens)
+                if (rules.exists(foundRule => foundRule.name.equalsIgnoreCase(rule.name))) {
+                    throw new LanguageException(filter.head.region, s"Rule ${rule.name.toLowerCase} already defined")
+                }
+                rules = rules :+ rule
             }
         }
         val ruleSet = RuleSet(rules)
@@ -30,7 +36,7 @@ final class Grammar(file: File) {
         stream.expectLiteral("::=")
         stream.consume()
         val expression = parseExpression(stream, tokens)
-        Rule(name, expression)
+        Rule(name.toLowerCase, expression)
     }
 
     private def parseExpression(stream: ModifiableTokenStream, tokens: List[Token]): GrammarElement = {
@@ -42,7 +48,8 @@ final class Grammar(file: File) {
             var innerList = List[GrammarElement]()
             while (matchedList) {
                 if (stream.isString) {
-                    val stringedLiteral = stream.current().literal
+                    val tokenRecord = stream.current()
+                    val stringedLiteral = tokenRecord.literal
                     assert(stringedLiteral.length >= 2)
                     val literalName = stringedLiteral.substring(1, stringedLiteral.length - 1)
                     stream.consume()
@@ -52,11 +59,10 @@ final class Grammar(file: File) {
                             val literal = Literal(value)
                             innerList = innerList :+ applyPostfix(stream, literal)
                         }
-                        case None => {
-                            throw new RuntimeException(s"Token $literalName not found")
-                        }
+                        case None => throw new LanguageException(tokenRecord.region, s"Token $literalName not found")
                     }
                 } else if (stream.isWord) {
+                    val tokenRecord = stream.current()
                     val word = stream.expectWord()
                     stream.consume()
                     val rule = RuleEntry(null)
@@ -64,7 +70,7 @@ final class Grammar(file: File) {
                         val found = ruleSet.findRule(word)
                         found match {
                             case Some(value) => rule.rule = value
-                            case None        => throw new RuntimeException(s"Rule $word not found")
+                            case None        => throw new LanguageException(tokenRecord.region, s"Rule $word not found")
                         }
                     })
                     innerList = innerList :+ applyPostfix(stream, rule)
@@ -74,7 +80,6 @@ final class Grammar(file: File) {
                     stream.expectLiteral(")")
                     stream.consume()
                     innerList = innerList :+ applyPostfix(stream, subExpression)
-
                 } else {
                     matchedList = false;
                 }
@@ -124,6 +129,7 @@ final class Grammar(file: File) {
           CharToken('?'),
           CharToken('('),
           CharToken(')'),
+          CharToken('|'),
           LiteralToken("::=")
         )
     }
@@ -156,6 +162,6 @@ enum Multiplicity {
 
 case class RuleSet(private val rules: List[Rule]) {
     def findRule(name: String): Option[Rule] = {
-        rules.find(rule => rule.name == name)
+        rules.find(rule => rule.name.equalsIgnoreCase(name))
     }
 }

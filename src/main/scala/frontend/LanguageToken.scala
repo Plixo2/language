@@ -13,6 +13,8 @@ object LanguageToken {
           LiteralToken("->"),
           LiteralToken("fn"),
           LiteralToken("let"),
+          LiteralToken("if"),
+          LiteralToken("else"),
           CharToken(':'),
           CharToken('='),
           CharToken('('),
@@ -20,6 +22,7 @@ object LanguageToken {
           CharToken('{'),
           CharToken('}'),
           CharToken(','),
+          CharToken('.'),
           WordToken,
           RegexToken("number", "[0-9]+\\.?[0-9]*".r),
         )

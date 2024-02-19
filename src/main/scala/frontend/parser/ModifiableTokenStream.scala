@@ -1,13 +1,21 @@
 package frontend
 package parser
 
+import frontend.exceptions.LanguageException
 import frontend.lexer.{StringToken, TokenRecord, WordToken}
 
 case class ModifiableTokenStream(private val list: List[TokenRecord]) {
-
     private var position = 0
 
-    def current(): TokenRecord = list(position)
+    def current(): TokenRecord = {
+        if (position >= list.length) {
+            if (list.isEmpty) throw new IllegalStateException("No more tokens left")
+
+            val tokenRecord = currentOrLast()
+            throw new LanguageException(tokenRecord.region, "No more tokens left")
+        }
+        list(position)
+    }
 
     def consume(): Unit = position += 1
 
@@ -27,6 +35,8 @@ case class ModifiableTokenStream(private val list: List[TokenRecord]) {
         }
         list
     }
+
+    def currentOrLast(): TokenRecord = if (hasLeft) current() else list.last
 
     def expectWord(): String = {
         val record = current()

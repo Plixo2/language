@@ -1,25 +1,26 @@
 package frontend
 
-import frontend.files.{VirtualFile, fileFromResource}
-import frontend.lexer.{Tokenizer, WhiteSpaceToken, WordToken}
-import frontend.parser.{Grammar, Parser, SyntaxResult}
+import frontend.exceptions.LanguageException
+import frontend.files.VirtualFile
 
 @main
 def main(): Unit = {
-
     val frontEnd = new FrontEnd()
     val content =
         """
           |fn main(s: String, w: int, ww: bool) -> int {
-          |     let x = 1
-          |     let y = 2
-          |     let sub = {
-          |         let z = x
-          |     }
-          |     x
+          |     a().id
           |}
           |""".stripMargin
 
-    frontEnd.parse(VirtualFile(
-        content))
+    try {
+        frontEnd.parse(VirtualFile(content, "test file"))
+    } catch {
+        case e: LanguageException => {
+            System.err.println(e.prettyString())
+            System.err.println("\n")
+            e.printStackTrace(System.err)
+        }
+    }
+
 }

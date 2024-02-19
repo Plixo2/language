@@ -1,0 +1,25 @@
+// ! means that the token or rule is required, so the parser throws an error if it cannot be matched.
+// ? means that the token or rule is optional
+// * means that the token or rule can be repeated zero or more times
+// Use parentheses to create sub expressions
+
+entry ::= function*
+function ::= "fn" id! "("! (parameter ("," parameter!)* )? ")"! ("->" type!)? expression!
+parameter ::= id ":"! type!
+
+type ::= id
+
+
+expression ::= object postFix*
+postFix ::= call | "." id!
+call ::= "(" (expression ("," expression)* )? ")"!
+object ::= ifElse | block | define | id | number | "(" expression! ")"!
+define ::= "let" id! "="! expression!
+block ::= "{" expression* "}"!
+
+ifElse ::= "if" expression! block! elsePart?
+elsePart ::= "else" block!
+
+
+id ::= "word"
+number ::= "number"

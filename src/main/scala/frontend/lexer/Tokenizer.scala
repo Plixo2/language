@@ -1,19 +1,22 @@
 package frontend
 package lexer
 
+import frontend.exceptions.LanguageException
 import frontend.files.File
 
 import scala.annotation.tailrec
 
 case class Tokenizer(tokens: List[Token]) {
 
-    def tokenize(file: File, lines: Iterator[String]): List[TokenRecord] = {
-        lines.zipWithIndex.flatMap { case (line, index) =>
-            tokenizeLine(file, line, index)
-        }.toList
+    def tokenize(file: File, lines: Iterator[String]): TokenizerResult = {
+        var result = TokenizerResult.Match(List())
+        lines.zipWithIndex.foreach { case (line, index) =>
+            result = result.and(() => tokenizeLine(file, line, index));
+        }
+        result
     }
 
-    def tokenizeLine(file: File, line: String, lineIndex: Int): List[TokenRecord] = {
+    def tokenizeLine(file: File, line: String, lineIndex: Int): TokenizerResult = {
 
         @tailrec
         def findFirstMatch(line: String, index: Int, tokens: List[Token]): Option[(Token, Int)] = {
@@ -28,19 +31,24 @@ case class Tokenizer(tokens: List[Token]) {
             }
         }
 
-        def nextRecord(foundToken: Option[(Token, Int)], startPosition: Position, position: Int): (TokenRecord, Int) = {
+        def nextRecord(
+            foundToken: Option[(Token, Int)],
+            startPosition: Position,
+            position: Int
+        ): (Option[TokenRecord], Int) = {
             foundToken match {
                 case Some((token, nextIndex)) => {
                     val endPosition = Position(lineIndex, nextIndex)
                     val region = Region(file, startPosition, endPosition)
                     val literal = line.substring(position, Math.min(nextIndex, line.length))
-                    (TokenRecord(token, literal, region), nextIndex);
+                    (Some(TokenRecord(token, literal, region)), nextIndex);
                 }
                 case None => {
                     val literal = line.substring(position, Math.min(position + 1, line.length))
                     val endPosition = Position(lineIndex, position + 1)
                     val region = Region(file, startPosition, endPosition)
-                    (TokenRecord(UnknownToken, literal, region), position + 1)
+//                    (TokenRecord(UnknownToken, literal, region), position + 1)
+                    (None, position + 1)
                 }
             }
         }
@@ -51,13 +59,50 @@ case class Tokenizer(tokens: List[Token]) {
             val startPosition = Position(lineIndex, char);
             val test = findFirstMatch(line, char, tokens)
             val token = nextRecord(test, startPosition, char)
-            if (char <= token._2) {
-                // TODO: Error handling, bc tokenizer is stuck now :(
+            if (token._2 <= char) {
+                return TokenizerResult.InvalidIndex(
+                  Region(file, startPosition, startPosition.expandRight(1)),
+                  tokens.head
+                )
             }
             char = token._2
-            records = records :+ token._1
+            token._1 match {
+                case Some(record) => records = records :+ record
+                case None => {
+                    throw new LanguageException(Region(file, startPosition, startPosition.expandRight(1)), "Unknown Token")
+                }
+//                    return TokenizerResult.UnknownToken(Region(file, startPosition, startPosition.expandRight(1)))
+            }
         }
-        records
+        TokenizerResult.Match(records)
     }
 
+}
+
+enum TokenizerResult {
+    case Match(tokens: List[TokenRecord])
+    case InvalidIndex(region: Region, token: Token)
+    case UnknownToken(region: Region)
+
+    def and(function: () => TokenizerResult): TokenizerResult = {
+        this match {
+            case TokenizerResult.Match(tokens) => {
+                function() match {
+                    case TokenizerResult.Match(newTokens)            => TokenizerResult.Match(tokens ++ newTokens)
+                    case TokenizerResult.InvalidIndex(region, token) => TokenizerResult.InvalidIndex(region, token)
+                    case TokenizerResult.UnknownToken(region)        => TokenizerResult.UnknownToken(region)
+                }
+            }
+            case TokenizerResult.InvalidIndex(region, token) => TokenizerResult.InvalidIndex(region, token)
+            case TokenizerResult.UnknownToken(region)        => TokenizerResult.UnknownToken(region)
+        }
+    }
+
+    def getOrThrow(): List[TokenRecord] = {
+        this match {
+            case TokenizerResult.Match(tokens) => tokens
+            case TokenizerResult.InvalidIndex(region, token) => throw new LanguageException(region, s"Invalid index for token: $token")
+            case TokenizerResult.UnknownToken(region) => throw new LanguageException(region, s"Unknown Token")
+        }
+    }
 }

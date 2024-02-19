@@ -1,6 +1,7 @@
 package frontend
 package parser
 
+import frontend.exceptions.LanguageException
 import frontend.lexer.{Region, TokenRecord}
 
 case class Node(name: String, region: Region, children: List[Node], tokenRecord: TokenRecord, isLiteral: Boolean) {
@@ -8,7 +9,7 @@ case class Node(name: String, region: Region, children: List[Node], tokenRecord:
     def apply(name: String): NodeResult = {
         children.find(_.name == name.toLowerCase) match {
             case Some(value) => NodeResult.Some(value)
-            case None        => NodeResult.None()
+            case None        => NodeResult.None(this.region)
         }
     }
 
@@ -17,6 +18,14 @@ case class Node(name: String, region: Region, children: List[Node], tokenRecord:
             apply("word").expect("Expected word on rule 'id'").tokenRecord.literal
         } else {
             apply("id").expect(s"token literal called id on ${this.name}").id()
+        }
+    }
+
+    def number(): String = {
+        if (name.toLowerCase == "number") {
+            apply("number").expect("Expected number on rule 'number'").tokenRecord.literal
+        } else {
+            apply("number").expect(s"token literal called number on ${this.name}").number()
         }
     }
 
@@ -33,6 +42,10 @@ case class Node(name: String, region: Region, children: List[Node], tokenRecord:
           name.toLowerCase == this.name.toLowerCase,
           s"Expected ${name.toLowerCase}, found ${this.name.toLowerCase}"
         )
+    }
+    
+    def error(msg: String): LanguageException = {
+        new LanguageException(this.region, msg)
     }
 
     override def toString: String = {
@@ -60,19 +73,31 @@ case class Node(name: String, region: Region, children: List[Node], tokenRecord:
 
 enum NodeResult {
     case Some(node: Node)
-    case None()
+    case None(region: Region)
 
     def expect(msg: String): Node = {
         this match {
             case NodeResult.Some(node) => node
-            case NodeResult.None()     => throw new Exception(msg)
+            case NodeResult.None(region)     => throw new LanguageException(region, "Expected "+msg)
         }
     }
 
-    def map[T](f: Node => T): Option[T] = {
+    def map[T](function: Node => T): Option[T] = {
         this match {
-            case NodeResult.Some(node) => Option.apply(f(node))
-            case NodeResult.None()     => Option.empty
+            case NodeResult.Some(node) => Option.apply(function(node))
+            case NodeResult.None(_)     => Option.empty
+        }
+    }
+    
+
+    def asOption(): Option[Node] = {
+        map(identity)
+    }
+    
+    def isDefined: Boolean = {
+        this match {
+            case NodeResult.Some(_) => true
+            case NodeResult.None(_) => false
         }
     }
 }
