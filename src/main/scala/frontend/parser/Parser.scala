@@ -22,13 +22,13 @@ final class Parser(private val entryRule: Rule) {
         val result = testExpression(rule, rule.expression, stream)
         val currentOrLast = stream.currentOrLast()
         val endPosition = currentOrLast.region.to
-        val region = startRegion.expandRight(endPosition)
+        val region = startRegion.setRight(endPosition)
         result match {
             case SyntaxResult.Match(elements) => {
                 RuleResult.RuleMatch(Node(rule.name, region, elements, currentOrLast, false))
             }
             case SyntaxResult.NoMatch()             => RuleResult.RuleNoMatch()
-            case SyntaxResult.Failure(region, rule) => RuleResult.RuleFailure(region, rule)
+            case SyntaxResult.Failure(region, rule, element) => RuleResult.RuleFailure(region, rule, element)
         }
     }
 
@@ -37,110 +37,132 @@ final class Parser(private val entryRule: Rule) {
         expression: GrammarElement,
         stream: ModifiableTokenStream
     ): SyntaxResult = {
-        expression match {
-            case Literal(token) => {
-                if (!stream.hasLeft) {
-                    SyntaxResult.NoMatch()
+        //<editor-fold desc="Parsing">
+        
+        def parseLiteral(tokenElement: Literal): SyntaxResult = {
+            if (!stream.hasLeft) {
+                SyntaxResult.NoMatch()
+            } else {
+                val record = stream.current()
+                if (record.token == tokenElement.token) {
+                    stream.consume()
+                    SyntaxResult.Match(List(Node(tokenElement.token.alias, record.region, List(), record, true)))
                 } else {
-                    val record = stream.current()
-                    if (record.token == token) {
-                        stream.consume()
-                        SyntaxResult.Match(List(Node(token.alias, record.region, List(), record, true)))
-                    } else {
-                        SyntaxResult.NoMatch()
+                    SyntaxResult.NoMatch()
+                }
+            }
+        }
+        
+        def parseSequenceElement(sequenceElement: SequenceElement): SyntaxResult = {
+            def testElements(elements: List[GrammarElement]): SyntaxResult = {
+                elements match {
+                    case Nil => SyntaxResult.Match(List())
+                    case head :: tail => {
+                        val subExpr = testExpression(owningRule, head, stream)
+                        subExpr.and(() => testElements(tail))
                     }
                 }
             }
-            case RuleEntry(rule) => {
-                val testedRule = testRule(rule, stream)
-                testedRule.asSyntaxResult
-            }
-            case SequenceElement(expressions) => {
-                def testElements(elements: List[GrammarElement]): SyntaxResult = {
-                    elements match {
-                        case Nil => SyntaxResult.Match(List())
-                        case head :: tail => {
-                            val subExpr = testExpression(owningRule, head, stream)
-                            subExpr.and(() => testElements(tail))
-                        }
-                    }
-                }
-                testElements(expressions)
-            }
-            case OptionsElement(elements) => {
-                @tailrec
-                def testElements(elements: List[GrammarElement]): SyntaxResult = {
-                    elements match {
-                        case Nil => SyntaxResult.NoMatch()
-                        case head :: tail => {
-                            val tokenPosition = stream.index()
-                            val subExpr = testExpression(owningRule, head, stream)
-                            subExpr match {
-                                case SyntaxResult.Match(elements) => SyntaxResult.Match(elements)
-                                case SyntaxResult.NoMatch() => {
-                                    stream.reset(tokenPosition)
-                                    testElements(tail)
-                                }
-                                case fail: SyntaxResult.Failure => fail
-                            }
-                        }
-                    }
-                }
-                testElements(elements)
-            }
-            case MultiElement(count, element) => {
-                count match {
-                    case Multiplicity.ZeroOrOne => {
-                        val pos = stream.index()
-                        stream.reset(pos)
-                        val subResult = testExpression(owningRule, element, stream)
-                        subResult match {
+
+            testElements(sequenceElement.expressions)
+        }
+        def parseOptionElement(optionsElement: OptionsElement): SyntaxResult = {
+            @tailrec
+            def testElements(elements: List[GrammarElement]): SyntaxResult = {
+                elements match {
+                    case Nil => SyntaxResult.NoMatch()
+                    case head :: tail => {
+                        val tokenPosition = stream.index()
+                        val subExpr = testExpression(owningRule, head, stream)
+                        subExpr match {
                             case SyntaxResult.Match(elements) => SyntaxResult.Match(elements)
                             case SyntaxResult.NoMatch() => {
-                                stream.reset(pos)
-                                SyntaxResult.Match(List())
+                                stream.reset(tokenPosition)
+                                testElements(tail)
                             }
                             case fail: SyntaxResult.Failure => fail
                         }
                     }
-                    case Multiplicity.ZeroOrMore => {
-                        var nodes = List[Node]()
-                        var latest = SyntaxResult.Match(List());
-                        // that's a do while loop
-                        while ({
-                            val pos = stream.index()
-                            latest = testExpression(owningRule, element, stream)
-                            latest match {
-                                case SyntaxResult.Match(elements) => {
-                                    nodes = nodes ++ elements
-                                    true
-                                }
-                                case SyntaxResult.NoMatch() => {
-                                    stream.reset(pos)
-                                    false
-                                }
-                                case fail: SyntaxResult.Failure => false
-                            }
-                        }) ()
-                        latest match {
-                            case SyntaxResult.Match(elements) => SyntaxResult.Match(nodes)
-                            case SyntaxResult.NoMatch()       => SyntaxResult.Match(nodes)
-                            case fail: SyntaxResult.Failure   => fail
+                }
+            }
+
+            testElements(optionsElement.elements)
+        }
+        def parseNecessaryElement(necessaryElement: NecessaryElement): SyntaxResult = {
+            val syntaxResult = testExpression(owningRule, necessaryElement.element, stream)
+            val currentOrLastRecord = stream.currentOrLast()
+            syntaxResult match {
+                case SyntaxResult.Match(elements) => syntaxResult
+                case SyntaxResult.NoMatch() => SyntaxResult.Failure(currentOrLastRecord.region, owningRule, necessaryElement.element)
+                case fail: SyntaxResult.Failure => fail
+            }
+        }
+        def parseMultiElement(multiElement: MultiElement): SyntaxResult = {
+            multiElement.count match {
+                case Multiplicity.ZeroOrOne => {
+                    val pos = stream.index()
+                    stream.reset(pos)
+                    val subResult = testExpression(owningRule, multiElement.element, stream)
+                    subResult match {
+                        case SyntaxResult.Match(elements) => SyntaxResult.Match(elements)
+                        case SyntaxResult.NoMatch() => {
+                            stream.reset(pos)
+                            SyntaxResult.Match(List())
                         }
+                        case fail: SyntaxResult.Failure => fail
+                    }
+                }
+                case Multiplicity.ZeroOrMore => {
+                    var nodes = List[Node]()
+                    var latest = SyntaxResult.Match(List());
+                    // that's a do while loop
+                    while ( {
+                        val pos = stream.index()
+                        latest = testExpression(owningRule, multiElement.element, stream)
+                        latest match {
+                            case SyntaxResult.Match(elements) => {
+                                nodes = nodes ++ elements
+                                true
+                            }
+                            case SyntaxResult.NoMatch() => {
+                                stream.reset(pos)
+                                false
+                            }
+                            case fail: SyntaxResult.Failure => false
+                        }
+                    }) ()
+                    latest match {
+                        case SyntaxResult.Match(elements) => SyntaxResult.Match(nodes)
+                        case SyntaxResult.NoMatch() => SyntaxResult.Match(nodes)
+                        case fail: SyntaxResult.Failure => fail
                     }
                 }
             }
-            case NecessaryElement(element) => {
-                val syntaxResult = testExpression(owningRule, element, stream)
-                val currentOrLastRecord = stream.currentOrLast()
-                syntaxResult match {
-                    case SyntaxResult.Match(elements) => syntaxResult
-                    case SyntaxResult.NoMatch()       => SyntaxResult.Failure(currentOrLastRecord.region, owningRule)
-                    case fail: SyntaxResult.Failure   => fail
-                }
+        }
+        //</editor-fold>
+        expression match {
+            case literal: Literal => {
+                parseLiteral(literal)
+            }
+            case RuleEntry(_,rule) => {
+                val testedRule = testRule(rule, stream)
+                testedRule.asSyntaxResult
+            }
+            case element : SequenceElement => {
+                parseSequenceElement(element)
+            }
+            case element: OptionsElement => {
+                parseOptionElement(element)
+            }
+            case element: MultiElement => {
+                parseMultiElement(element)
+            }
+            case element : NecessaryElement => {
+                parseNecessaryElement(element)
             }
         }
     }
+
 
 }
 
@@ -148,7 +170,7 @@ enum SyntaxResult {
     case Match(elements: List[Node])
     case NoMatch()
 
-    case Failure(region: Region, rule: Rule)
+    case Failure(region: Region, rule: Rule, failedElement: GrammarElement)
 
     def and(other: () => SyntaxResult): SyntaxResult = {
         this match {
@@ -168,14 +190,14 @@ enum SyntaxResult {
 enum RuleResult {
     case RuleMatch(node: Node)
     case RuleNoMatch()
-    case RuleFailure(region: Region, rule: Rule)
+    case RuleFailure(region: Region, rule: Rule, failedElement: GrammarElement)
 
     def asSyntaxResult: SyntaxResult = {
         this match {
             case RuleMatch(node)           => SyntaxResult.Match(List(node))
             case RuleNoMatch()             => SyntaxResult.NoMatch()
-            case RuleFailure(region, rule) => SyntaxResult.Failure(region, rule)
+            case RuleFailure(region, rule, element) => SyntaxResult.Failure(region, rule, element)
         }
     }
-    
+
 }

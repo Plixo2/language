@@ -1,7 +1,21 @@
-
-
-fn name() -> name {
-    val a = 100
-    val b = 200
-
+fn main(s: String, w: int, ww: bool) -> int {
+     if ww {
+         0
+     } else {
+         1
+         #something
+     }
+     x
+     x()
+     a.b.c().d()
+     a.b.c().d(1,10, { 100 }).e().f()
+     {
+        sub
+     }
+     let x = 100
+     let a = x.and(b)
+     hello
+     true
+     false
+     # single line comment
 }

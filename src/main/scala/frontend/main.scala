@@ -1,24 +1,17 @@
 package frontend
 
 import frontend.exceptions.LanguageException
-import frontend.files.VirtualFile
+import frontend.files.fileFromPath
 
 @main
 def main(): Unit = {
     val frontEnd = new FrontEnd()
-    val content =
-        """
-          |fn main(s: String, w: int, ww: bool) -> int {
-          |     a().id
-          |}
-          |""".stripMargin
+    val file = fileFromPath("resources/test.reduction")
 
     try {
-        frontEnd.parse(VirtualFile(content, "test file"))
+        frontEnd.parse(file)
     } catch {
         case e: LanguageException => {
-            System.err.println(e.prettyString())
-            System.err.println("\n")
             e.printStackTrace(System.err)
         }
     }

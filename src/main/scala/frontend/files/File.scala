@@ -40,7 +40,17 @@ case class ResourceFile(content: String, path: String) extends File {
     } 
 }
 
+//TODO error handling
 def fileFromResource(path: String): File = {
     val source: String = Source.fromResource(path).mkString
     ResourceFile(source, path)
+}
+
+//TODO error handling
+def fileFromPath(path: String): File = {
+    val file = io.File(path)
+    val bufferedSource = Source.fromFile(file)
+    val source: String = bufferedSource.mkString
+    bufferedSource.close()
+    PhysicalFile(source, file)
 }

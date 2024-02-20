@@ -1,7 +1,7 @@
-// ! means that the token or rule is required, so the parser throws an error if it cannot be matched.
-// ? means that the token or rule is optional
-// * means that the token or rule can be repeated zero or more times
-// Use parentheses to create sub expressions
+# ! means that the token or rule is required, so the parser throws an error if it cannot be matched.
+# ? means that the token or rule is optional
+# * means that the token or rule can be repeated zero or more times
+# Use parentheses to create sub expressions
 
 entry ::= function*
 function ::= "fn" id! "("! (parameter ("," parameter!)* )? ")"! ("->" type!)? expression!

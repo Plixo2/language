@@ -43,7 +43,7 @@ case class Node(name: String, region: Region, children: List[Node], tokenRecord:
           s"Expected ${name.toLowerCase}, found ${this.name.toLowerCase}"
         )
     }
-    
+
     def error(msg: String): LanguageException = {
         new LanguageException(this.region, msg)
     }
@@ -77,27 +77,33 @@ enum NodeResult {
 
     def expect(msg: String): Node = {
         this match {
-            case NodeResult.Some(node) => node
-            case NodeResult.None(region)     => throw new LanguageException(region, "Expected "+msg)
+            case NodeResult.Some(node)   => node
+            case NodeResult.None(region) => throw new LanguageException(region, "Expected " + msg)
         }
     }
 
     def map[T](function: Node => T): Option[T] = {
         this match {
             case NodeResult.Some(node) => Option.apply(function(node))
-            case NodeResult.None(_)     => Option.empty
+            case NodeResult.None(_)    => Option.empty
         }
     }
-    
 
     def asOption(): Option[Node] = {
         map(identity)
     }
-    
+
     def isDefined: Boolean = {
         this match {
             case NodeResult.Some(_) => true
             case NodeResult.None(_) => false
         }
+    }
+}
+
+import scala.util.chaining.*
+extension [T](option: Option[T]) {
+    def expect(msg: String): T = option.getOrElse {
+        throw new IllegalStateException(s"Expected $msg")
     }
 }

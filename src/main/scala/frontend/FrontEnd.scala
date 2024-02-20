@@ -7,14 +7,14 @@ import frontend.lexer.*
 import frontend.parser.*
 
 class FrontEnd {
-    private val grammarFile: File = fileFromResource("grammar.ebnf")
+    private val grammarFile: File = fileFromResource("grammar.txt")
     private val grammarEntry: String = "entry"
 
     def parse(file: File): Unit = {
         val languageTokens = LanguageToken.allTokens()
         val grammar = loadGrammar(languageTokens)
         val tokenizer = Tokenizer(languageTokens)
-        val entryRule = grammar.findRule(grammarEntry).getOrElse(throw new RuntimeException("Entry rule not found"))
+        val entryRule = grammar.findRule(grammarEntry).expect(s"Rule '$grammarEntry'")
         val parser = Parser(entryRule)
         val records = tokenize(file, tokenizer)
         val result = parser.parse(records)
@@ -28,10 +28,14 @@ class FrontEnd {
                     println(function)
                 })
             }
-            case RuleResult.RuleNoMatch()             => {
+            case RuleResult.RuleNoMatch() => {
                 throw new LanguageException(file.startRegion(), s"No match for Rule '$grammarEntry'")
             }
-            case RuleResult.RuleFailure(region, rule) => throw new LanguageException(region, s"Failure in Rule '$rule'")
+            case RuleResult.RuleFailure(region, rule, element) =>
+                throw new LanguageException(
+                  region,
+                  s"Failure of Element ${element} in Rule '$rule' \n${element.region.prettyString()}\nin Source"
+                )
         }
     }
 

@@ -118,7 +118,7 @@ object StringToken extends Token {
 object CommentToken extends Token {
     def alias: String = "comment"
     def matches(content: String, index: Int): TokenMatch = {
-        if (content.regionMatches(index, "//", 0, 2)) {
+        if (content.regionMatches(index, "#", 0, 1)) {
             TokenMatch.Matched(content.length)
         } else {
             TokenMatch.Unmatched()
