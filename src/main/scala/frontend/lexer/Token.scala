@@ -1,6 +1,8 @@
 package frontend
 package lexer
 
+import frontend.highlevel.Operators
+
 import java.util.regex.Pattern
 import scala.util.matching.Regex
 
@@ -93,6 +95,13 @@ case class CharToken(char: Char) extends Token {
         } else {
             TokenMatch.Unmatched()
         }
+    }
+}
+
+case class OperatorToken(operator: Operators, subToken: Token) extends Token {
+    def alias: String = subToken.alias
+    def matches(content: String, index: Int): TokenMatch = {
+        subToken.matches(content, index)
     }
 }
 

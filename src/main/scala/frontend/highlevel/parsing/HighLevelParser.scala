@@ -2,7 +2,8 @@ package frontend.highlevel.parsing
 
 import frontend.exceptions.LanguageException
 import frontend.highlevel.*
-import frontend.parser.{Node, NodeResult}
+import frontend.lexer.*
+import frontend.parser.{Node, NodeResult, expect}
 
 object HighLevelParser {
     def parseMethod(node: Node): HighLevelFunction = {
@@ -41,8 +42,65 @@ object HighLevelExpressionParser {
 
     def parse(node: Node): HighLevelExpression = {
         node.assertType("expression")
-        val expression = parseObject(node("object").expect("object on expression"))
-        val postFixApplied = node.getAll("postfix").foldLeft(expression)(parsePostFix)
+        if (node("define").isDefined) {
+            parseDefine(node("define").expect("define on expression node"))
+        } else {
+            val conditional = node("conditionalOrExpression")
+                .expect("conditionalOrExpression on expression node, if no define node")
+            parseBinaryNode(conditional, binaryFunctions)
+        }
+    }
+
+    private val binaryFunctions: List[String] = List(
+      "conditionalOrExpression",
+      "conditionalAndExpression",
+      "equalityExpression",
+      "relationalExpression",
+      "additiveExpression",
+      "multiplicativeExpression",
+      "unaryExpression"
+    )
+    private def parseBinaryNode(node: Node, functions: List[String]): HighLevelExpression = {
+        assert(functions.nonEmpty, "No functions left to parse")
+        if (functions.size == 1) {
+            return unaryExpression(node)
+        }
+        node.assertType(functions.head)
+        val left = parseBinaryNode(node(functions(1)).expect("left on binary node"), functions.tail)
+        if (node(functions.head).isDefined) {
+            val functionNode = node.find(child => child.isLiteral).expect("function on binary node");
+            val tokenType = functionNode.tokenRecord.token
+            tokenType match {
+                case OperatorToken(operator, subToken) => {
+                    val right = parseBinaryNode(node(functions.head).expect("right on binary node"), functions)
+                    HIRBinaryOperation(node.region, operator, left, right)
+                }
+                case _ =>
+                    throw new LanguageException(functionNode.region, "Invalid token type, expected operator token")
+            }
+        } else {
+            left
+        }
+    }
+
+    private def unaryExpression(node: Node): HighLevelExpression = {
+        node.assertType("unaryExpression")
+        val factor = parseFactor(node("factor").expect("factor on unary"))
+        node.find(child => child.isLiteral).map(_.tokenRecord.token) match {
+            case Some(OperatorToken(operator, subToken)) => {
+                HIRUnaryOperation(node.region, operator, factor)
+            }
+            case Some(rest) => {
+                throw new LanguageException(node.region, s"Invalid token type, expected operator token, got ${rest}")
+            }
+            case None => factor
+        }
+    }
+
+    private def parseFactor(node: Node): HighLevelExpression = {
+        node.assertType("factor")
+        val left = parseObject(node("object").expect("object on factor"))
+        val postFixApplied = node.getAll("postfix").foldLeft(left)(parsePostFix)
         postFixApplied
     }
 
@@ -90,8 +148,15 @@ object HighLevelExpressionParser {
 
     private def parseCall(left: HighLevelExpression, node: Node): HighLevelExpression = {
         node.assertType("call")
-        val expressions = node.map("expression", parse)
-        HIRCall(node.region, left, expressions)
+        val arguments = node.map(
+          "argument",
+          argNode => {
+              val value = parse(argNode("expression").expect("expression on argument node"))
+              val nameOption = argNode("id").map(_.id())
+              Argument(argNode.region, nameOption, value)
+          }
+        )
+        HIRCall(node.region, left, arguments)
     }
 
     private def parseDot(left: HighLevelExpression, node: Node): HighLevelExpression = {
@@ -114,7 +179,11 @@ object HighLevelExpressionParser {
     private def parseBlock(node: Node): HighLevelExpression = {
         node.assertType("block")
         val expressions = node.map("expression", parse)
-        HIRBlock(node.region, expressions)
+        if (expressions.size == 1) {
+            expressions.head
+        } else {
+            HIRBlock(node.region, expressions)
+        }
     }
 
     private def parseDefine(node: Node): HighLevelExpression = {
@@ -141,6 +210,5 @@ object HighLevelExpressionParser {
             case Some(value) => HIRNumber(node.region, value)
             case None        => throw new LanguageException(node.region, s"Invalid number format '${numberStr}'")
         }
-
     }
 }

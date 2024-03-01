@@ -1,4 +1,9 @@
-fn main(s: String, w: int, ww: bool) -> int {
+fn math() {
+    1 + 2 * 10 # 21
+    true && false || false && true
+}
+
+fn main(s: String, w: int, ww: bool) {
      if ww {
          0
      } else {
@@ -17,5 +22,12 @@ fn main(s: String, w: int, ww: bool) -> int {
      hello
      true
      false
+     if true {
+        
+     }
      # single line comment
+     not (
+        namedCalling: false
+     )
+     not(true)
 }

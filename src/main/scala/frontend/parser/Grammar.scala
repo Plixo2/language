@@ -96,7 +96,7 @@ final class Grammar(file: File) {
                         innerList = innerList :+ applyPostfix(stream, literal)
                     }
                     case None =>
-                        throw new LanguageException(tokenRecord.region, s"Token $literalName not found")
+                        throw new LanguageException(tokenRecord.region, s"Token '$literalName' not found")
                 }
             } else if (stream.isWord) {
                 val tokenRecord = stream.current()

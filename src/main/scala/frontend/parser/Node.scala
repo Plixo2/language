@@ -12,7 +12,7 @@ case class Node(name: String, region: Region, children: List[Node], tokenRecord:
             case None        => NodeResult.None(this.region)
         }
     }
-
+    
     def id(): String = {
         if (name.toLowerCase == "id") {
             apply("word").expect("Expected word on rule 'id'").tokenRecord.literal
@@ -31,6 +31,10 @@ case class Node(name: String, region: Region, children: List[Node], tokenRecord:
 
     def map[T](name: String, f: Node => T): List[T] = {
         children.filter(_.name == name.toLowerCase).map(f)
+    }
+    
+    def find(predicate: Node => Boolean): Option[Node] = {
+        children.find(predicate)
     }
 
     def getAll(name: String): List[Node] = {

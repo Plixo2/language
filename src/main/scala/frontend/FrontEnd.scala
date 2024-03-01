@@ -23,9 +23,9 @@ class FrontEnd {
                 entry.assertType("entry")
                 val functionNodes = entry.getAll("function")
                 functionNodes.foreach(ref => {
-                    println(ref)
                     val function = HighLevelParser.parseMethod(ref)
                     println(function)
+                    println(function.expression)
                 })
             }
             case RuleResult.RuleNoMatch() => {

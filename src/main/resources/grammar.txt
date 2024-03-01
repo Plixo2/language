@@ -7,19 +7,33 @@ entry ::= function*
 function ::= "fn" id! "("! (parameter ("," parameter!)* )? ")"! ("->" type!)? expression!
 parameter ::= id ":"! type!
 
-type ::= id
 
 
-expression ::= object postFix*
-postFix ::= call | "." id!
-call ::= "(" (expression ("," expression)* )? ")"!
-object ::= ifElse | block | define | id | number | "(" expression! ")"!
+expression ::= define | conditionalOrExpression
 define ::= "let" id! "="! expression!
-block ::= "{" expression* "}"!
+
+
+conditionalOrExpression ::= conditionalAndExpression ("||" conditionalOrExpression!)?
+conditionalAndExpression ::= equalityExpression ("&&" conditionalAndExpression!)?
+equalityExpression ::= relationalExpression (("==" | "!=") equalityExpression!)?
+relationalExpression ::= additiveExpression (("<" | ">" | "<=" | ">=") relationalExpression!)?
+additiveExpression ::= multiplicativeExpression (("+" | "-") additiveExpression!)?
+multiplicativeExpression ::= unaryExpression (("*" | "/" | "%") multiplicativeExpression!)?
+unaryExpression ::= ("+" | "-" | "!") factor! | factor
+factor ::= object postFix*
+
+object ::= ifElse | block | id | number | "(" expression! ")"!
 
 ifElse ::= "if" expression! block! elsePart?
 elsePart ::= "else" block!
+block ::= "{" expression* "}"!
 
 
+postFix ::= call | "." id!
+call ::= "(" (argument ("," argument)* )? ")"!
+argument ::= (id ":")? expression
+
+
+type ::= id
 id ::= "word"
 number ::= "number"
